@@ -22,7 +22,14 @@ import { Taptree } from "bitcoinjs-lib/src/types";
 import { witnessStackToScriptWitness } from "./utils/witness-utils";
 import { bitcoinjs } from "./bitcoinjs-wrapper";
 import { constructP2TR } from "./builder";
-import { combinePubkeys, combineSignatures } from "./utils/muSig-utils";
+import {
+  combineNonces,
+  combinePubkeys,
+  combineSignatures,
+  initSignerSession,
+  partialSign,
+  verifySignature,
+} from "./utils/muSig-utils";
 
 // vars
 const NETWORK = ecpair.networks.testnet;
@@ -32,8 +39,87 @@ console.log(`Selected network:\n`, JSON.stringify(NETWORK, null, 2), "\n");
 async function main() {
   const userKeypair = generateRandomKeypair({ network: NETWORK });
   const signerKeypair = generateRandomKeypair({ network: NETWORK });
+  testSchnorr(userKeypair, signerKeypair);
   await startP2PKTR(userKeypair, signerKeypair);
   await startTaptree(userKeypair, signerKeypair);
+}
+
+function testSchnorr(userKeypair: Signer, signerKeypair: Signer) {
+  // Combine pubkeys
+  const combinedPubkey = combinePubkeys([
+    toXOnly(userKeypair.publicKey),
+    toXOnly(signerKeypair.publicKey),
+  ]);
+
+  const message = Buffer.from(
+    "9d156b9ca7bdcd65bce3e8f32d4c4286d89429f422e85faa6b1a2296e04b0a56",
+    "hex"
+  );
+  const session1 = initSignerSession({
+    signer: userKeypair,
+    idx: 0,
+    publicData: {
+      message,
+      pubkeys: [
+        toXOnly(userKeypair.publicKey),
+        toXOnly(signerKeypair.publicKey),
+      ],
+    },
+  });
+  const session2 = initSignerSession({
+    signer: signerKeypair,
+    idx: 1,
+    publicData: {
+      message,
+      pubkeys: [
+        toXOnly(userKeypair.publicKey),
+        toXOnly(signerKeypair.publicKey),
+      ],
+    },
+  });
+
+  const nonces = [session1.nonce, session2.nonce];
+
+  // All parties do this individually & verify
+  const combinedNonce = combineNonces({
+    localSession: session1,
+    publicData: {
+      nonces,
+    },
+  });
+
+  const partialSig1 = partialSign({
+    localSession: session1,
+    publicData: {
+      message,
+      combinedNonce: combinedNonce,
+      combinedPubkey: combinedPubkey.pubkey,
+    },
+  });
+  const partialSig2 = partialSign({
+    localSession: session2,
+    publicData: {
+      message,
+      combinedNonce: combinedNonce,
+      combinedPubkey: combinedPubkey.pubkey,
+    },
+  });
+
+  const sig = combineSignatures({
+    publicData: {
+      message,
+      combinedNonce: combinedNonce,
+      partialSignatures: [partialSig1, partialSig2],
+    },
+  });
+
+  verifySignature({
+    publicData: {
+      message,
+      combinedPubkey: combinedPubkey.pubkey,
+      signature: sig,
+    },
+  });
 }
 
 async function startP2PKTR(userKeypair: Signer, signerKeypair: Signer) {
@@ -45,11 +131,9 @@ async function startP2PKTR(userKeypair: Signer, signerKeypair: Signer) {
     toXOnly(signerKeypair.publicKey),
   ]);
 
-  console.log(combineSignatures([userKeypair, signerKeypair]));
-
   // Generate an address from the tweaked public key
   const p2pktr = bitcoinjs.payments.p2tr({
-    pubkey: combinedPubkey,
+    pubkey: combinedPubkey.pubkey,
     network: NETWORK,
   });
   const p2pktr_addr = p2pktr.address ?? "";
@@ -63,7 +147,7 @@ async function startP2PKTR(userKeypair: Signer, signerKeypair: Signer) {
     hash: utxos[0].txid,
     index: utxos[0].vout,
     witnessUtxo: { value: utxos[0].value, script: p2pktr.output! },
-    tapInternalKey: combinedPubkey,
+    tapInternalKey: combinedPubkey.pubkey,
   });
 
   psbt.addOutput({
@@ -127,17 +211,17 @@ async function startTaptree(userKeypair: Signer, signerKeypair: Signer) {
     toXOnly(signerKeypair.publicKey),
   ]);
 
-  const scriptP2TR = constructP2TR(combinedPubkey, scriptTree, NETWORK);
+  const scriptP2TR = constructP2TR(combinedPubkey.pubkey, scriptTree, NETWORK);
   const scriptAddress = scriptP2TR.address!;
 
   const p2pkP2TR = constructP2TR(
-    combinedPubkey,
+    combinedPubkey.pubkey,
     scriptTree,
     NETWORK,
     p2pkRedeem
   );
   const hashlockP2TR = constructP2TR(
-    combinedPubkey,
+    combinedPubkey.pubkey,
     scriptTree,
     NETWORK,
     hashlockRedeem
@@ -242,7 +326,7 @@ async function startTaptree(userKeypair: Signer, signerKeypair: Signer) {
     hash: utxos[0].txid,
     index: utxos[0].vout,
     witnessUtxo: { value: utxos[0].value, script: scriptP2TR.output! },
-    tapInternalKey: combinedPubkey,
+    tapInternalKey: combinedPubkey.pubkey,
     tapMerkleRoot: scriptP2TR.hash,
   });
 
