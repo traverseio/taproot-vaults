@@ -7,8 +7,8 @@ import { bitcoinjs } from "../bitcoinjs-wrapper";
 // init
 const ecpairFactory = ecpair.ECPairFactory(tinysecp);
 
-export function generateRandomKeypair(opts: any = {}): Signer {
-  return ecpairFactory.makeRandom({ network: opts.network });
+export function generateRandomKeypair(opts: any): Signer {
+  return ecpairFactory.makeRandom(opts);
 }
 
 export function tweakSigner(signer: Signer, opts: any = {}): Signer {
@@ -43,7 +43,7 @@ export function tapTweakHash(pubKey: Buffer, h: Buffer | undefined): Buffer {
 }
 
 export function toXOnly(pubkey: Buffer): Buffer {
-  return pubkey.subarray(1, 33);
+  return pubkey.length === 32 ? pubkey : pubkey.subarray(1, 33);
 }
 
 export function getP2PKHAddress(pubkey: Buffer): string | undefined {

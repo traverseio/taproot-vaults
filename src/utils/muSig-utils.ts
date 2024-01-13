@@ -1,7 +1,7 @@
 const schnorr = require("bip-schnorr");
 import BigInteger from "bigi";
 import * as ethers from "ethers";
-import { Signer } from "ecpair";
+import * as ecpair from "ecpair";
 import { MuSigSession } from "../types";
 
 // =========== GENERAL =========== //
@@ -26,7 +26,7 @@ export function initSignerSession({
   idx,
   publicData,
 }: {
-  signer: Signer;
+  signer: ecpair.Signer;
   idx: number;
   publicData: {
     message: Buffer;

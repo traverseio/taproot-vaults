@@ -34,7 +34,7 @@ import {
 // vars
 const NETWORK = ecpair.networks.testnet;
 
-console.log(`Selected network:\n`, JSON.stringify(NETWORK, null, 2), "\n");
+console.log(`Selected network prefix:`, NETWORK.bech32, "\n");
 
 async function main() {
   const userKeypair = generateRandomKeypair({ network: NETWORK });
@@ -120,6 +120,7 @@ function testSchnorr(userKeypair: Signer, signerKeypair: Signer) {
       signature: sig,
     },
   });
+  console.log("Schnorr signature verification succeeded");
 }
 
 async function startP2PKTR(userKeypair: Signer, signerKeypair: Signer) {
