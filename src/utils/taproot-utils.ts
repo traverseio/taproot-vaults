@@ -1,23 +1,32 @@
 import * as ecpair from "ecpair";
 import * as tinysecp from "tiny-secp256k1";
-import { Signer } from "ecpair";
 import { crypto } from "bitcoinjs-lib";
 import { bitcoinjs } from "../bitcoinjs-wrapper";
 
 // init
 const ecpairFactory = ecpair.ECPairFactory(tinysecp);
 
-export function generateRandomKeypair(opts: any): Signer {
+export function randomKeypair(opts: any): ecpair.ECPairInterface {
   return ecpairFactory.makeRandom(opts);
 }
 
-export function tweakSigner(signer: Signer, opts: any = {}): Signer {
-  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-  // @ts-ignore
-  let privateKey: Uint8Array | undefined = signer.privateKey!;
-  if (!privateKey) {
-    throw new Error("Private key is required for tweaking signer!");
+export function loadKeypair(
+  privateKey: Buffer,
+  opts: any
+): ecpair.ECPairInterface {
+  return ecpairFactory.fromPrivateKey(privateKey, opts);
+}
+
+export function tweakSigner(
+  signer: ecpair.ECPairInterface,
+  opts: any
+): ecpair.ECPairInterface {
+  if (!signer.privateKey) {
+    throw new Error("Private key is required for tweaking signer");
   }
+
+  let privateKey = Uint8Array.from(signer.privateKey);
+
   if (signer.publicKey[0] === 3) {
     privateKey = tinysecp.privateNegate(privateKey);
   }
@@ -26,6 +35,7 @@ export function tweakSigner(signer: Signer, opts: any = {}): Signer {
     privateKey,
     tapTweakHash(toXOnly(signer.publicKey), opts.tweakHash)
   );
+
   if (!tweakedPrivateKey) {
     throw new Error("Invalid tweaked private key!");
   }
@@ -42,8 +52,19 @@ export function tapTweakHash(pubKey: Buffer, h: Buffer | undefined): Buffer {
   );
 }
 
-export function toXOnly(pubkey: Buffer): Buffer {
-  return pubkey.length === 32 ? pubkey : pubkey.subarray(1, 33);
+export function toXOnly(pubKey: Buffer): Buffer {
+  return pubKey.length === 32 ? pubKey : pubKey.subarray(1, 33);
+}
+
+export function checkXOnly(pubKeys: Buffer[]): void {
+  const invalid = pubKeys.find((pubKey) => pubKey.length !== 32);
+  if (invalid !== undefined) {
+    throw new Error(
+      `Found invalid pubKey ${invalid.toString(
+        "hex"
+      )}: pubKeys must be 32 bytes`
+    );
+  }
 }
 
 export function getP2PKHAddress(pubkey: Buffer): string | undefined {

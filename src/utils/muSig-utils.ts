@@ -3,20 +3,24 @@ import BigInteger from "bigi";
 import * as ethers from "ethers";
 import * as ecpair from "ecpair";
 import { MuSigSession } from "../types";
+import { checkXOnly } from "./taproot-utils";
 
 // =========== GENERAL =========== //
 
-export function combinePubkeys(pubkeys: Buffer[]): {
-  pubkeyHash: Buffer;
-  pubkey: Buffer;
-  pubkeyParity: boolean;
+export function combinePubkeys(xOnlyPubKeys: Buffer[]): {
+  pubKeyHash: Buffer;
+  pubKey: Buffer;
+  pubKeyParity: boolean;
 } {
-  const pubkeyHash = schnorr.muSig.computeEll(pubkeys);
-  const rawCombined = schnorr.muSig.pubKeyCombine(pubkeys, pubkeyHash);
-  const pubkey = schnorr.convert.intToBuffer(rawCombined.affineX);
-  const pubkeyParity = schnorr.math.isEven(rawCombined);
+  // Validate pubKeys
+  checkXOnly(xOnlyPubKeys);
 
-  return { pubkeyHash, pubkey, pubkeyParity };
+  const pubKeyHash = schnorr.muSig.computeEll(xOnlyPubKeys);
+  const point = schnorr.muSig.pubKeyCombine(xOnlyPubKeys, pubKeyHash);
+  const pubKey = schnorr.convert.intToBuffer(point.affineX);
+  const pubKeyParity = schnorr.math.isEven(point);
+
+  return { pubKeyHash, pubKey, pubKeyParity };
 }
 
 // =========== SIGNERS =========== //
@@ -26,26 +30,29 @@ export function initSignerSession({
   idx,
   publicData,
 }: {
-  signer: ecpair.Signer;
+  signer: ecpair.ECPairInterface;
   idx: number;
   publicData: {
     message: Buffer;
-    pubkeys: Buffer[];
+    xOnlyPubKeys: Buffer[];
   };
 }): MuSigSession {
-  const { pubkeyHash, pubkey, pubkeyParity } = combinePubkeys(
-    publicData.pubkeys
+  // Validate pubKeys
+  checkXOnly(publicData.xOnlyPubKeys);
+
+  const { pubKeyHash, pubKey, pubKeyParity } = combinePubkeys(
+    publicData.xOnlyPubKeys
   );
   // The session ID *must* be unique for every call to sessionInitialize, otherwise it's trivial for
   // an attacker to extract the secret key!
-  const sessionId = Buffer.from(ethers.randomBytes(32)); // must never be reused between sessions!
+  const sessionID = Buffer.from(ethers.randomBytes(32)); // must never be reused between sessions!
   return schnorr.muSig.sessionInitialize(
-    sessionId,
-    BigInteger.fromBuffer((signer as any).privateKey),
+    sessionID,
+    BigInteger.fromBuffer(signer.privateKey),
     publicData.message,
-    pubkey,
-    pubkeyParity,
-    pubkeyHash,
+    pubKey,
+    pubKeyParity,
+    pubKeyHash,
     idx
   );
 }
@@ -58,7 +65,7 @@ export function combineNonces({
   publicData: {
     nonces: Buffer[];
   };
-}) {
+}): Buffer {
   // Appends combinedNonceParity attribute to session and returns combinedNonce
   return schnorr.muSig.sessionNonceCombine(localSession, publicData.nonces);
 }
@@ -99,6 +106,7 @@ export function combineSignatures({
   );
 }
 
+// TODO: verify partial signatures locally
 export function verifySignature({
   publicData,
 }: {
