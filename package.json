@@ -5,7 +5,9 @@
   "main": "index.js",
   "scripts": {
     "build": "tsc",
-    "start": "node ./lib/index.js"
+    "start": "node ./lib/index.js",
+    "mocha:ts": "mocha --recursive --require test/ts-node-register",
+    "test": "npm run mocha:ts -- --timeout 50000 'test/*.ts'"
   },
   "repository": {
     "type": "git",
@@ -21,16 +23,21 @@
     "axios": "^1.6.2",
     "bigi": "^1.4.2",
     "bip-schnorr": "^0.6.7",
+    "bip32": "^4.0.0",
     "bitcoinjs-lib": "^6.1.5",
     "dotenv": "^16.3.1",
     "ecpair": "^2.1.0",
     "ecurve": "^1.0.6",
     "ethers": "^6.9.2",
+    "regtest-client": "^0.2.1",
     "tiny-secp256k1": "^2.2.3",
     "typescript": "^5.3.3"
   },
   "devDependencies": {
     "@types/ecurve": "^1.0.3",
-    "@types/node": "^20.10.5"
+    "@types/mocha": "^10.0.6",
+    "@types/node": "^20.10.5",
+    "mocha": "^10.2.0",
+    "ts-node": "^10.9.2"
   }
 }
