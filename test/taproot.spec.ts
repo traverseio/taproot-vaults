@@ -14,7 +14,8 @@ describe("taproot integration test", () => {
   let userKeyPair: Signer;
   let signerKeyPair: Signer;
   let attackerKeyPair: Signer;
-  let secretWord: string;
+  let secretBytes: Buffer;
+  let incorrectSecretBytes: Buffer;
   let unspentTxId: string;
   let faucetAmount: number;
   let hashedSecret: Buffer;
@@ -23,13 +24,14 @@ describe("taproot integration test", () => {
     userKeyPair = bip32.fromSeed(rng(64), regtest);
     signerKeyPair = bip32.fromSeed(rng(64), regtest);
     attackerKeyPair = bip32.fromSeed(rng(64), regtest);
-    secretWord = "topsecret!@#";
+    secretBytes = Buffer.from("topsecret!@#");
+    incorrectSecretBytes = Buffer.from("joemama420");
     faucetAmount = 42e4;
 
     const setupResult = await setupTaprootAndFaucet(
       userKeyPair,
       signerKeyPair,
-      secretWord,
+      secretBytes,
       faucetAmount
     );
     hashedSecret = setupResult.hashedSecret;
@@ -130,7 +132,7 @@ describe("taproot integration test", () => {
       userKeyPair.publicKey,
       signerKeyPair.publicKey,
       signerKeyPair,
-      secretWord,
+      secretBytes,
       hashedSecret,
       faucetAmount,
       unspentTxId,
@@ -146,7 +148,7 @@ describe("taproot integration test", () => {
         userKeyPair.publicKey,
         signerKeyPair.publicKey,
         signerKeyPair,
-        "secretWord",
+        incorrectSecretBytes,
         hashedSecret,
         faucetAmount,
         unspentTxId,
@@ -156,33 +158,15 @@ describe("taproot integration test", () => {
     } catch (err) {}
   });
 
-  it("hashlock failure because secretWord not given", async () => {
+  it("hashlock failure because signer is attacker", async () => {
     const receiverAddress =
       "bcrt1ptv7n7yr2mtjv3cy9m86shzhqragknvsxpx84ygnpmx5h2wpplmlsvuss6c";
     try {
       await spendHashlock(
         userKeyPair.publicKey,
         signerKeyPair.publicKey,
-        signerKeyPair,
-        null,
-        hashedSecret,
-        faucetAmount,
-        unspentTxId,
-        receiverAddress
-      );
-      assert.fail();
-    } catch (err) {}
-  });
-
-  it("hashlock failure because backend not signed", async () => {
-    const receiverAddress =
-      "bcrt1ptv7n7yr2mtjv3cy9m86shzhqragknvsxpx84ygnpmx5h2wpplmlsvuss6c";
-    try {
-      await spendHashlock(
-        userKeyPair.publicKey,
-        signerKeyPair.publicKey,
-        null,
-        secretWord,
+        attackerKeyPair,
+        secretBytes,
         hashedSecret,
         faucetAmount,
         unspentTxId,

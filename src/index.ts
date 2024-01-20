@@ -4,11 +4,12 @@ import * as dotenv from "dotenv";
 dotenv.config();
 
 import { Signer } from "ecpair";
-import { witnessStackToScriptWitness } from "./utils/witness-utils";
 import { bitcoinjs } from "./bitcoinjs-wrapper";
 import { buildScripts, constructP2TR } from "./builder";
 import { regtestUtils } from "./_regtest";
 import { liftX } from "./utils/schnorr-utils";
+import { constructHashlockSpend, finalizeHashlockSpend } from "./vault-helpers";
+import { Psbt } from "bitcoinjs-lib";
 
 const NETWORK = regtestUtils.network;
 // https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki#:~:text=H%20%3D%20lift_x(0x50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0)
@@ -22,23 +23,22 @@ const INVALID_ADDRESS = liftX(
 export async function setupTaprootAndFaucet(
   userKeypair: Signer,
   signerKeypair: Signer,
-  secretWord: string,
+  secretBytes: Buffer,
   faucetAmount: number
 ): Promise<any> {
-  const secret_answer = Buffer.from(secretWord);
-  const hash = bitcoinjs.crypto.hash160(secret_answer);
+  const hashedSecret = bitcoinjs.crypto.hash160(secretBytes);
 
   const { scriptTree } = buildScripts(
     userKeypair.publicKey,
     signerKeypair.publicKey,
-    hash
+    hashedSecret
   );
   const { output } = constructP2TR(INVALID_ADDRESS, scriptTree, NETWORK);
   // amount from faucet
   const amount = faucetAmount; //42e4;
   // get faucet
   const utxo = await regtestUtils.faucetComplex(output!, amount);
-  return { hashedSecret: hash, unspentTxId: utxo.txId };
+  return { hashedSecret, unspentTxId: utxo.txId };
 }
 
 export async function spendMultisig(
@@ -112,74 +112,46 @@ export async function spendMultisig(
 export async function spendHashlock(
   userPubKey: Buffer,
   signerPubKey: Buffer,
-  signerKeypair: Signer | null,
-  secretWord: string | null,
+  signerKeypair: Signer,
+  secretWord: Buffer,
   hashedSecret: Buffer,
   faucetAmount: number,
   unspentTxId: string,
   receiverAddress: string
 ): Promise<any> {
-  const { hashlockScript, scriptTree } = buildScripts(
-    userPubKey,
-    signerPubKey,
-    hashedSecret
-  );
-  const redeem = {
-    output: hashlockScript,
-    redeemVersion: 192,
-  };
-  const { output, address, witness } = constructP2TR(
-    INVALID_ADDRESS,
-    scriptTree,
-    NETWORK,
-    redeem
-  );
-
-  const psbt = new bitcoinjs.Psbt({ network: NETWORK });
-  psbt.addInput({
-    hash: unspentTxId,
-    index: 0,
-    witnessUtxo: { value: faucetAmount, script: output! },
-  });
-  const tapLeafScript = {
-    leafVersion: redeem.redeemVersion,
-    script: redeem.output,
-    controlBlock: witness![witness!.length - 1],
-  };
-  psbt.updateInput(0, {
-    tapLeafScript: [tapLeafScript],
-  });
-
   const sendAmount = faucetAmount - 1e4;
-  psbt.addOutput({ value: sendAmount, address: receiverAddress! });
 
-  if (signerKeypair) psbt.signInput(0, signerKeypair);
-  if (secretWord) {
-    const customFinalizer = (_inputIndex: number, input: any) => {
-      const scriptSolution = [
-        input.tapScriptSig[0].signature,
-        Buffer.from(secretWord),
-      ];
-      const witness = scriptSolution
-        .concat(tapLeafScript.script)
-        .concat(tapLeafScript.controlBlock);
-      return {
-        finalScriptWitness: witnessStackToScriptWitness(witness),
-      };
-    };
+  const psbtHex = constructHashlockSpend(
+    {
+      userPubKey,
+      signerPubKey,
+      hashedSecret,
+    },
+    [
+      {
+        txHash: unspentTxId,
+        idx: 0,
+        value: faucetAmount,
+      },
+    ],
+    [
+      {
+        recipient: receiverAddress,
+        amount: sendAmount,
+      },
+    ]
+  );
 
-    psbt.finalizeInput(0, customFinalizer);
-  } else {
-    psbt.finalizeInput(0);
-  }
-  // psbt.finalizeInput(0);
-  const tx = psbt.extractTransaction();
-  const rawTx = tx.toBuffer();
-  const hex = rawTx.toString("hex");
+  const psbt = Psbt.fromHex(psbtHex, {
+    network: NETWORK,
+  });
+  psbt.signAllInputs(signerKeypair);
 
-  await regtestUtils.broadcast(hex);
+  const { txHash, txHex } = finalizeHashlockSpend(psbt, secretWord);
+
+  await regtestUtils.broadcast(txHex);
   await regtestUtils.verify({
-    txId: tx.getId(),
+    txId: txHash,
     address: receiverAddress!,
     vout: 0,
     value: sendAmount,
