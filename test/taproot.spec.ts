@@ -2,7 +2,7 @@ import * as assert from "assert";
 import BIP32Factory, { BIP32Interface } from "bip32";
 import * as ecc from "tiny-secp256k1";
 import { describe, it } from "mocha";
-import { regtestUtils } from "../src/_regtest";
+import { regtestUtils } from "../src/regtest";
 import { setupTaprootAndFaucet, spendMultisig, spendHashlock } from "../src";
 import { Signer } from "bitcoinjs-lib";
 
@@ -149,6 +149,24 @@ describe("taproot integration test", () => {
         signerKeyPair.publicKey,
         signerKeyPair,
         incorrectSecretBytes,
+        hashedSecret,
+        faucetAmount,
+        unspentTxId,
+        receiverAddress
+      );
+      assert.fail();
+    } catch (err) {}
+  });
+
+  it("hashlock failure because backend not signed", async () => {
+    const receiverAddress =
+      "bcrt1ptv7n7yr2mtjv3cy9m86shzhqragknvsxpx84ygnpmx5h2wpplmlsvuss6c";
+    try {
+      await spendHashlock(
+        userKeyPair.publicKey,
+        signerKeyPair.publicKey,
+        null,
+        secretBytes,
         hashedSecret,
         faucetAmount,
         unspentTxId,
