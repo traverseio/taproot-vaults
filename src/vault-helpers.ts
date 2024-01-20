@@ -1,4 +1,3 @@
-import { Signer } from "ecpair";
 import { witnessStackToScriptWitness } from "./utils/witness-utils";
 import { bitcoinjs } from "./bitcoinjs-wrapper";
 import { buildScripts, constructP2TR } from "./builder";
@@ -16,89 +15,6 @@ const INVALID_ADDRESS = liftX(
     "hex"
   )
 );
-
-export async function constructVaultP2TR(
-  userPubKey: Buffer,
-  signerPubKey: Buffer,
-  hashedSecret: Buffer
-): Promise<{
-  address: string | undefined;
-  output: Buffer | undefined;
-}> {
-  const { scriptTree } = buildScripts(userPubKey, signerPubKey, hashedSecret);
-  const { address, output } = constructP2TR(
-    INVALID_ADDRESS,
-    scriptTree,
-    NETWORK
-  );
-  return { address, output };
-}
-
-export async function spendMultisig(
-  userPubKey: Buffer,
-  signerPubKey: Buffer,
-  userKeypair: Signer | null,
-  signerKeypair: Signer | null,
-  hashedSecret: Buffer,
-  faucetAmount: number,
-  unspentTxId: string,
-  receiverAddress: string
-): Promise<any> {
-  const { multisigScript, scriptTree } = buildScripts(
-    userPubKey,
-    signerPubKey,
-    hashedSecret
-  );
-
-  const redeem = {
-    output: multisigScript,
-    redeemVersion: 192,
-  };
-
-  const { output, address, witness } = constructP2TR(
-    INVALID_ADDRESS,
-    scriptTree,
-    NETWORK,
-    redeem
-  );
-
-  const psbt = new bitcoinjs.Psbt({ network: NETWORK });
-  psbt.addInput({
-    hash: unspentTxId,
-    index: 0,
-    witnessUtxo: { value: faucetAmount, script: output! },
-    tapLeafScript: [
-      {
-        leafVersion: redeem.redeemVersion,
-        script: redeem.output,
-        controlBlock: witness![witness!.length - 1],
-      },
-    ],
-  });
-
-  const sendAmount = faucetAmount - 1e4;
-  psbt.addOutput({
-    value: sendAmount,
-    address: receiverAddress!,
-  });
-
-  // random order for signers
-  if (userKeypair) psbt.signInput(0, userKeypair);
-  if (signerKeypair) psbt.signInput(0, signerKeypair);
-
-  psbt.finalizeInput(0);
-  const tx = psbt.extractTransaction();
-  const rawTx = tx.toBuffer();
-  const hex = rawTx.toString("hex");
-
-  await regtestUtils.broadcast(hex);
-  await regtestUtils.verify({
-    txId: tx.getId(),
-    address: receiverAddress!,
-    vout: 0,
-    value: sendAmount,
-  });
-}
 
 /**
  * Initialize unsigned hashlock spend PSBT
