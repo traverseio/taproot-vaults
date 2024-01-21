@@ -1,12 +1,13 @@
 import { Signer } from "ecpair";
-import { bitcoinjs } from "./bitcoinjs-wrapper";
-import { regtestUtils } from "./regtest";
+import { bitcoinjs } from "../src/bitcoinjs-wrapper";
+import { regtestUtils } from "../src/regtest";
 import {
   buildVaultP2TR,
   buildVaultPSBT,
   finalizeVaultPSBT,
-} from "./vault-builder";
+} from "../src/vault-builder";
 import { Psbt } from "bitcoinjs-lib";
+import { randomKeyPair as randomKP } from "../src/utils/taproot-utils";
 
 const NETWORK = regtestUtils.network;
 
@@ -136,4 +137,8 @@ export async function spendHashlock(
     vout: 0,
     value: sendAmount,
   });
+}
+
+export function randomKeyPair(): Signer {
+  return randomKP(NETWORK);
 }

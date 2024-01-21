@@ -1,14 +1,12 @@
 import * as assert from "assert";
-import BIP32Factory, { BIP32Interface } from "bip32";
-import * as ecc from "tiny-secp256k1";
 import { describe, it } from "mocha";
-import { regtestUtils } from "../src/regtest";
-import { setupTaprootAndFaucet, spendMultisig, spendHashlock } from "../src";
+import {
+  setupTaprootAndFaucet,
+  spendMultisig,
+  spendHashlock,
+  randomKeyPair,
+} from ".";
 import { Signer } from "bitcoinjs-lib";
-
-const rng = require("randombytes");
-const regtest = regtestUtils.network;
-const bip32 = BIP32Factory(ecc);
 
 describe("taproot integration test", () => {
   let userKeyPair: Signer;
@@ -21,9 +19,9 @@ describe("taproot integration test", () => {
   let hashedSecret: Buffer;
 
   beforeEach(async () => {
-    userKeyPair = bip32.fromSeed(rng(64), regtest);
-    signerKeyPair = bip32.fromSeed(rng(64), regtest);
-    attackerKeyPair = bip32.fromSeed(rng(64), regtest);
+    userKeyPair = randomKeyPair();
+    signerKeyPair = randomKeyPair();
+    attackerKeyPair = randomKeyPair();
     secretBytes = Buffer.from("topsecret!@#");
     incorrectSecretBytes = Buffer.from("joemama420");
     faucetAmount = 42e4;

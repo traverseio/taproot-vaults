@@ -21,10 +21,8 @@
   "homepage": "https://github.com/traverseio/taproot-vaults#readme",
   "dependencies": {
     "axios": "^1.6.2",
-    "bigi": "^1.4.2",
     "bip-schnorr": "^0.6.7",
     "bip174": "^2.1.1",
-    "bip32": "^4.0.0",
     "bitcoinjs-lib": "^6.1.5",
     "ecpair": "^2.1.0",
     "ecurve": "^1.0.6",
