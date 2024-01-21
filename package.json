@@ -2,12 +2,22 @@
   "name": "taproot-vaults",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "./dist/index.js",
   "scripts": {
-    "build": "tsc",
+    "build": "rm -rf dist && tsc",
     "start": "node ./lib/index.js",
     "mocha:ts": "mocha --recursive --require test/ts-node-register",
     "test": "npm run mocha:ts -- --timeout 50000 'test/*.ts'"
+  },
+  "exports": {
+    "./utils": "./dist/utils.js"
+  },
+  "typesVersions": {
+    "*": {
+      "utils": [
+        "dist/utils.d.ts"
+      ]
+    }
   },
   "repository": {
     "type": "git",
