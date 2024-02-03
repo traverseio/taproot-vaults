@@ -18,7 +18,7 @@ var __values = (this && this.__values) || function(o) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.finalizeVaultPSBT = exports.buildVaultPSBT = exports.buildVaultP2TR = void 0;
 var witness_utils_1 = require("./utils/witness-utils");
-var bitcoinjs_wrapper_1 = require("./bitcoinjs-wrapper");
+var bitcoinjs_wrapper_1 = require("./wrappers/bitcoinjs-wrapper");
 var schnorr_utils_1 = require("./utils/schnorr-utils");
 var taproot_utils_1 = require("./utils/taproot-utils");
 // Nothing Up My Sleeve (NUMS) address is used because vaults are intended to be used without an internal pubkey

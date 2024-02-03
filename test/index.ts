@@ -1,5 +1,5 @@
 import { Signer } from "ecpair";
-import { bitcoinjs } from "../src/bitcoinjs-wrapper";
+import { bitcoinjs } from "../src/wrappers/bitcoinjs-wrapper";
 import { regtestUtils } from "./regtest";
 import {
   buildVaultP2TR,

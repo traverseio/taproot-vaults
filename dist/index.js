@@ -15,4 +15,6 @@ var __exportStar = (this && this.__exportStar) || function(m, exports) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 __exportStar(require("./vault-builder.js"), exports);
-__exportStar(require("./bitcoinjs-wrapper.js"), exports);
+__exportStar(require("./wrappers/bitcoinjs-wrapper.js"), exports);
+__exportStar(require("./wrappers/ecpair-wrapper.js"), exports);
+__exportStar(require("./utils/taproot-utils.js"), exports);

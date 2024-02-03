@@ -1,9 +1,6 @@
 import { Network } from "bitcoinjs-lib";
 import * as ecpair from "ecpair";
-import * as tinysecp from "tiny-secp256k1";
-
-// init
-const ecpairFactory = ecpair.ECPairFactory(tinysecp);
+import { ecpairFactory } from "../wrappers/ecpair-wrapper";
 
 export function randomKeyPair(network: Network): ecpair.ECPairInterface {
   return ecpairFactory.makeRandom({ network });

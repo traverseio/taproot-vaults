@@ -5,7 +5,7 @@
  */
 
 import { witnessStackToScriptWitness } from "./utils/witness-utils";
-import { bitcoinjs } from "./bitcoinjs-wrapper";
+import { bitcoinjs } from "./wrappers/bitcoinjs-wrapper";
 import { liftX } from "./utils/schnorr-utils";
 import { RawInput, RawOutput, VaultParams } from "./types";
 import { PsbtInput } from "bip174/src/lib/interfaces";

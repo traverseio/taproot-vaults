@@ -3,7 +3,9 @@
     "rootDir": "src",
     "outDir": "dist",
     "target": "es5",
-    "lib": ["es2021"],
+    "lib": [
+      "es2021"
+    ],
     "allowSyntheticDefaultImports": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
@@ -23,5 +25,8 @@
     "isolatedModules": true,
     "downlevelIteration": true
   },
-  "exclude": ["test", "lib"]
+  "exclude": [
+    "test",
+    "dist"
+  ]
 }
