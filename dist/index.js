@@ -18,3 +18,4 @@ __exportStar(require("./vault-builder.js"), exports);
 __exportStar(require("./wrappers/bitcoinjs-wrapper.js"), exports);
 __exportStar(require("./wrappers/ecpair-wrapper.js"), exports);
 __exportStar(require("./utils/taproot-utils.js"), exports);
+__exportStar(require("./types.js"), exports);
