@@ -2,6 +2,7 @@ export type VaultParams = {
   userPubKey: Buffer;
   signerPubKey: Buffer;
   hashedSecret: Buffer;
+  salt: number;
 };
 
 export type RawInput = {

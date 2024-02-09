@@ -7,44 +7,68 @@ import {
   randomKeyPair,
 } from ".";
 import { Signer } from "bitcoinjs-lib";
+import { VaultParams } from "../src/types";
+import { bitcoinjs } from "../src/wrappers/bitcoinjs-wrapper";
+import { buildVaultP2TR } from "../src/vault-builder";
 
 describe("taproot integration test", () => {
-  let userKeyPair: Signer;
-  let signerKeyPair: Signer;
-  let attackerKeyPair: Signer;
-  let secretBytes: Buffer;
-  let incorrectSecretBytes: Buffer;
+  const userKeyPair: Signer = randomKeyPair();
+  const signerKeyPair: Signer = randomKeyPair();
+  const attackerKeyPair: Signer = randomKeyPair();
+
+  const secretBytes: Buffer = Buffer.from("topsecret!@#");
+  const hashedSecret: Buffer = bitcoinjs.crypto.hash160(secretBytes);
+  const incorrectSecretBytes: Buffer = Buffer.from("joemama420");
+
+  const salt: number = 0;
+
+  const vaultParams: VaultParams = {
+    userPubKey: userKeyPair.publicKey,
+    signerPubKey: signerKeyPair.publicKey,
+    hashedSecret,
+    salt,
+  };
+
+  const faucetAmount: number = 42e4;
+  const receiverAddress =
+    "bcrt1ptv7n7yr2mtjv3cy9m86shzhqragknvsxpx84ygnpmx5h2wpplmlsvuss6c";
+
   let unspentTxId: string;
-  let faucetAmount: number;
-  let hashedSecret: Buffer;
-
   beforeEach(async () => {
-    userKeyPair = randomKeyPair();
-    signerKeyPair = randomKeyPair();
-    attackerKeyPair = randomKeyPair();
-    secretBytes = Buffer.from("topsecret!@#");
-    incorrectSecretBytes = Buffer.from("joemama420");
-    faucetAmount = 42e4;
-
-    const setupResult = await setupTaprootAndFaucet(
-      userKeyPair,
-      signerKeyPair,
-      secretBytes,
-      faucetAmount
-    );
-    hashedSecret = setupResult.hashedSecret;
+    const setupResult = await setupTaprootAndFaucet(vaultParams, faucetAmount);
     unspentTxId = setupResult.unspentTxId;
   });
 
+  it("different salts result in different vaults", async () => {
+    const { userPubKey, signerPubKey, hashedSecret } = vaultParams;
+
+    const { address: address1 } = await setupTaprootAndFaucet(
+      {
+        userPubKey,
+        signerPubKey,
+        hashedSecret,
+        salt: 0,
+      },
+      faucetAmount
+    );
+    const { address: address2 } = await setupTaprootAndFaucet(
+      {
+        userPubKey,
+        signerPubKey,
+        hashedSecret,
+        salt: 2,
+      },
+      faucetAmount
+    );
+
+    assert.notEqual(address1, address2);
+  });
+
   it("multisig success", async () => {
-    const receiverAddress =
-      "bcrt1ptv7n7yr2mtjv3cy9m86shzhqragknvsxpx84ygnpmx5h2wpplmlsvuss6c";
     await spendMultisig(
-      userKeyPair.publicKey,
-      signerKeyPair.publicKey,
+      vaultParams,
       userKeyPair,
       signerKeyPair,
-      hashedSecret,
       faucetAmount,
       unspentTxId,
       receiverAddress
@@ -52,15 +76,11 @@ describe("taproot integration test", () => {
   });
 
   it("multisig failure because user not signed", async () => {
-    const receiverAddress =
-      "bcrt1ptv7n7yr2mtjv3cy9m86shzhqragknvsxpx84ygnpmx5h2wpplmlsvuss6c";
     try {
       await spendMultisig(
-        userKeyPair.publicKey,
-        signerKeyPair.publicKey,
+        vaultParams,
         null,
         signerKeyPair,
-        hashedSecret,
         faucetAmount,
         unspentTxId,
         receiverAddress
@@ -70,15 +90,11 @@ describe("taproot integration test", () => {
   });
 
   it("multisig failure because backend not signed", async () => {
-    const receiverAddress =
-      "bcrt1ptv7n7yr2mtjv3cy9m86shzhqragknvsxpx84ygnpmx5h2wpplmlsvuss6c";
     try {
       await spendMultisig(
-        userKeyPair.publicKey,
-        signerKeyPair.publicKey,
+        vaultParams,
         userKeyPair,
         null,
-        hashedSecret,
         faucetAmount,
         unspentTxId,
         receiverAddress
@@ -88,15 +104,11 @@ describe("taproot integration test", () => {
   });
 
   it("multisig failure because user is attacker", async () => {
-    const receiverAddress =
-      "bcrt1ptv7n7yr2mtjv3cy9m86shzhqragknvsxpx84ygnpmx5h2wpplmlsvuss6c";
     try {
       await spendMultisig(
-        userKeyPair.publicKey,
-        signerKeyPair.publicKey,
+        vaultParams,
         attackerKeyPair,
         signerKeyPair,
-        hashedSecret,
         faucetAmount,
         unspentTxId,
         receiverAddress
@@ -106,15 +118,11 @@ describe("taproot integration test", () => {
   });
 
   it("multisig failure because backend is attacker", async () => {
-    const receiverAddress =
-      "bcrt1ptv7n7yr2mtjv3cy9m86shzhqragknvsxpx84ygnpmx5h2wpplmlsvuss6c";
     try {
       await spendMultisig(
-        userKeyPair.publicKey,
-        signerKeyPair.publicKey,
+        vaultParams,
         userKeyPair,
         attackerKeyPair,
-        hashedSecret,
         faucetAmount,
         unspentTxId,
         receiverAddress
@@ -124,14 +132,10 @@ describe("taproot integration test", () => {
   });
 
   it("hashlock success", async () => {
-    const receiverAddress =
-      "bcrt1ptv7n7yr2mtjv3cy9m86shzhqragknvsxpx84ygnpmx5h2wpplmlsvuss6c";
     await spendHashlock(
-      userKeyPair.publicKey,
-      signerKeyPair.publicKey,
+      vaultParams,
       signerKeyPair,
       secretBytes,
-      hashedSecret,
       faucetAmount,
       unspentTxId,
       receiverAddress
@@ -139,15 +143,11 @@ describe("taproot integration test", () => {
   });
 
   it("hashlock failure because wrong secretWord", async () => {
-    const receiverAddress =
-      "bcrt1ptv7n7yr2mtjv3cy9m86shzhqragknvsxpx84ygnpmx5h2wpplmlsvuss6c";
     try {
       await spendHashlock(
-        userKeyPair.publicKey,
-        signerKeyPair.publicKey,
+        vaultParams,
         signerKeyPair,
         incorrectSecretBytes,
-        hashedSecret,
         faucetAmount,
         unspentTxId,
         receiverAddress
@@ -157,15 +157,11 @@ describe("taproot integration test", () => {
   });
 
   it("hashlock failure because backend not signed", async () => {
-    const receiverAddress =
-      "bcrt1ptv7n7yr2mtjv3cy9m86shzhqragknvsxpx84ygnpmx5h2wpplmlsvuss6c";
     try {
       await spendHashlock(
-        userKeyPair.publicKey,
-        signerKeyPair.publicKey,
+        vaultParams,
         null,
         secretBytes,
-        hashedSecret,
         faucetAmount,
         unspentTxId,
         receiverAddress
@@ -175,15 +171,11 @@ describe("taproot integration test", () => {
   });
 
   it("hashlock failure because signer is attacker", async () => {
-    const receiverAddress =
-      "bcrt1ptv7n7yr2mtjv3cy9m86shzhqragknvsxpx84ygnpmx5h2wpplmlsvuss6c";
     try {
       await spendHashlock(
-        userKeyPair.publicKey,
-        signerKeyPair.publicKey,
+        vaultParams,
         attackerKeyPair,
         secretBytes,
-        hashedSecret,
         faucetAmount,
         unspentTxId,
         receiverAddress

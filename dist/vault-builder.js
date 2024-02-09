@@ -15,12 +15,16 @@ var __values = (this && this.__values) || function(o) {
     };
     throw new TypeError(s ? "Object is not iterable." : "Symbol.iterator is not defined.");
 };
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.finalizeVaultPSBT = exports.buildVaultPSBT = exports.buildVaultP2TR = void 0;
 var witness_utils_1 = require("./utils/witness-utils");
 var bitcoinjs_wrapper_1 = require("./wrappers/bitcoinjs-wrapper");
 var schnorr_utils_1 = require("./utils/schnorr-utils");
 var taproot_utils_1 = require("./utils/taproot-utils");
+var varuint_bitcoin_1 = __importDefault(require("varuint-bitcoin"));
 // Nothing Up My Sleeve (NUMS) address is used because vaults are intended to be used without an internal pubkey
 // https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki#:~:text=H%20%3D%20lift_x(0x50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0)
 var NUMS_ADDRESS = (0, schnorr_utils_1.liftX)(Buffer.from("50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0", "hex"));
@@ -30,10 +34,8 @@ var NUMS_ADDRESS = (0, schnorr_utils_1.liftX)(Buffer.from("50929b74c1a04954b78b4
  * @param script the optional script to use when initializing a payment
  */
 function buildVaultP2TR(vaultParams, network, script) {
-    // unpack vault params
-    var userPubKey = vaultParams.userPubKey, signerPubKey = vaultParams.signerPubKey, hashedSecret = vaultParams.hashedSecret;
     // build scripts
-    var scriptTree = buildScripts(userPubKey, signerPubKey, hashedSecret).scriptTree;
+    var scriptTree = buildScripts(vaultParams).scriptTree;
     return bitcoinjs_wrapper_1.bitcoinjs.payments.p2tr({
         internalPubkey: (0, taproot_utils_1.toXOnly)(NUMS_ADDRESS),
         scriptTree: scriptTree,
@@ -55,9 +57,8 @@ exports.buildVaultP2TR = buildVaultP2TR;
  */
 function buildVaultPSBT(vaultParams, inputs, outputs, spendScript, network) {
     var e_1, _a, e_2, _b;
-    var userPubKey = vaultParams.userPubKey, signerPubKey = vaultParams.signerPubKey, hashedSecret = vaultParams.hashedSecret;
     // reconstruct scripts
-    var _c = buildScripts(userPubKey, signerPubKey, hashedSecret), multisigScript = _c.multisigScript, hashlockScript = _c.hashlockScript;
+    var _c = buildScripts(vaultParams), multisigScript = _c.multisigScript, hashlockScript = _c.hashlockScript;
     // choose correct script
     var script = spendScript === "multisig" ? multisigScript : hashlockScript;
     var _d = buildVaultP2TR(vaultParams, network, script), output = _d.output, witness = _d.witness, redeem = _d.redeem;
@@ -134,9 +135,11 @@ function finalizeVaultPSBT(psbt, spendScript, secretBytes) {
     return { txHex: tx.toHex(), txHash: tx.getId() };
 }
 exports.finalizeVaultPSBT = finalizeVaultPSBT;
-function buildScripts(userPubKey, signerPubKey, hashedSecret) {
+function buildScripts(vaultParams) {
+    var userPubKey = vaultParams.userPubKey, signerPubKey = vaultParams.signerPubKey, hashedSecret = vaultParams.hashedSecret, salt = vaultParams.salt;
     var multisigScript = bitcoinjs_wrapper_1.bitcoinjs.script.fromASM("".concat((0, taproot_utils_1.toXOnly)(userPubKey).toString("hex"), " OP_CHECKSIG ").concat((0, taproot_utils_1.toXOnly)(signerPubKey).toString("hex"), " OP_CHECKSIGADD OP_2 OP_EQUAL"));
-    var hashlockScript = bitcoinjs_wrapper_1.bitcoinjs.script.fromASM("OP_HASH160 ".concat(hashedSecret.toString("hex"), " OP_EQUALVERIFY ").concat((0, taproot_utils_1.toXOnly)(signerPubKey).toString("hex"), " OP_CHECKSIG"));
+    var hashlockScript = bitcoinjs_wrapper_1.bitcoinjs.script.fromASM("".concat(varuint_bitcoin_1.default.encode(salt).toString("hex"), " OP_DROP ") + // Add salt and then pop it off
+        "OP_HASH160 ".concat(hashedSecret.toString("hex"), " OP_EQUALVERIFY ").concat((0, taproot_utils_1.toXOnly)(signerPubKey).toString("hex"), " OP_CHECKSIG"));
     // Construct MAST
     var scriptTree = [
         {

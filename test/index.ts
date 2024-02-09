@@ -8,38 +8,26 @@ import {
 } from "../src/vault-builder";
 import { Psbt } from "bitcoinjs-lib";
 import { randomKeyPair as randomKP } from "../src/utils/taproot-utils";
+import { VaultParams } from "../src/types";
 
 const NETWORK = regtestUtils.network;
 
 export async function setupTaprootAndFaucet(
-  userKeypair: Signer,
-  signerKeypair: Signer,
-  secretBytes: Buffer,
+  vaultParams: VaultParams,
   faucetAmount: number
 ): Promise<any> {
-  const hashedSecret = bitcoinjs.crypto.hash160(secretBytes);
-
-  const { output } = buildVaultP2TR(
-    {
-      userPubKey: userKeypair.publicKey,
-      signerPubKey: signerKeypair.publicKey,
-      hashedSecret,
-    },
-    NETWORK
-  );
+  const { address, output } = buildVaultP2TR(vaultParams, NETWORK);
 
   // request from faucet
   const utxo = await regtestUtils.faucetComplex(output!, faucetAmount);
 
-  return { hashedSecret, unspentTxId: utxo.txId };
+  return { address, unspentTxId: utxo.txId };
 }
 
 export async function spendMultisig(
-  userPubKey: Buffer,
-  signerPubKey: Buffer,
+  vaultParams: VaultParams,
   userKeypair: Signer | null,
   signerKeypair: Signer | null,
-  hashedSecret: Buffer,
   faucetAmount: number,
   unspentTxId: string,
   receiverAddress: string
@@ -47,11 +35,7 @@ export async function spendMultisig(
   const sendAmount = faucetAmount - 1e4;
 
   const psbtHex = buildVaultPSBT(
-    {
-      userPubKey,
-      signerPubKey,
-      hashedSecret,
-    },
+    vaultParams,
     [
       {
         txHash: unspentTxId,
@@ -88,11 +72,9 @@ export async function spendMultisig(
 }
 
 export async function spendHashlock(
-  userPubKey: Buffer,
-  signerPubKey: Buffer,
+  vaultParams: VaultParams,
   signerKeypair: Signer | null,
   secretWord: Buffer,
-  hashedSecret: Buffer,
   faucetAmount: number,
   unspentTxId: string,
   receiverAddress: string
@@ -100,11 +82,7 @@ export async function spendHashlock(
   const sendAmount = faucetAmount - 1e4;
 
   const psbtHex = buildVaultPSBT(
-    {
-      userPubKey,
-      signerPubKey,
-      hashedSecret,
-    },
+    vaultParams,
     [
       {
         txHash: unspentTxId,

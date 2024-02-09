@@ -12,6 +12,7 @@ import { PsbtInput } from "bip174/src/lib/interfaces";
 import { Network, Payment, Psbt } from "bitcoinjs-lib";
 import { Taptree } from "bitcoinjs-lib/src/types";
 import { toXOnly } from "./utils/taproot-utils";
+import varuint from "varuint-bitcoin";
 
 // Nothing Up My Sleeve (NUMS) address is used because vaults are intended to be used without an internal pubkey
 // https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki#:~:text=H%20%3D%20lift_x(0x50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0)
@@ -32,11 +33,8 @@ export function buildVaultP2TR(
   network: Network,
   script?: Buffer
 ): Payment {
-  // unpack vault params
-  const { userPubKey, signerPubKey, hashedSecret } = vaultParams;
-
   // build scripts
-  const { scriptTree } = buildScripts(userPubKey, signerPubKey, hashedSecret);
+  const { scriptTree } = buildScripts(vaultParams);
 
   return bitcoinjs.payments.p2tr({
     internalPubkey: toXOnly(NUMS_ADDRESS),
@@ -64,14 +62,8 @@ export function buildVaultPSBT(
   spendScript: "multisig" | "hashlock",
   network: Network
 ): string {
-  const { userPubKey, signerPubKey, hashedSecret } = vaultParams;
-
   // reconstruct scripts
-  const { multisigScript, hashlockScript } = buildScripts(
-    userPubKey,
-    signerPubKey,
-    hashedSecret
-  );
+  const { multisigScript, hashlockScript } = buildScripts(vaultParams);
 
   // choose correct script
   const script = spendScript === "multisig" ? multisigScript : hashlockScript;
@@ -146,26 +138,25 @@ export function finalizeVaultPSBT(
   return { txHex: tx.toHex(), txHash: tx.getId() };
 }
 
-function buildScripts(
-  userPubKey: Buffer,
-  signerPubKey: Buffer,
-  hashedSecret: Buffer
-): {
+function buildScripts(vaultParams: VaultParams): {
   multisigScript: Buffer;
   hashlockScript: Buffer;
   scriptTree: Taptree;
 } {
+  const { userPubKey, signerPubKey, hashedSecret, salt } = vaultParams;
+
   const multisigScript = bitcoinjs.script.fromASM(
     `${toXOnly(userPubKey).toString("hex")} OP_CHECKSIG ${toXOnly(
       signerPubKey
     ).toString("hex")} OP_CHECKSIGADD OP_2 OP_EQUAL`
   );
-
   const hashlockScript = bitcoinjs.script.fromASM(
-    `OP_HASH160 ${hashedSecret.toString("hex")} OP_EQUALVERIFY ${toXOnly(
-      signerPubKey
-    ).toString("hex")} OP_CHECKSIG`
+    `${varuint.encode(salt).toString("hex")} OP_DROP ` + // Add salt and then pop it off
+      `OP_HASH160 ${hashedSecret.toString("hex")} OP_EQUALVERIFY ${toXOnly(
+        signerPubKey
+      ).toString("hex")} OP_CHECKSIG`
   );
+
   // Construct MAST
   const scriptTree: Taptree = [
     {
